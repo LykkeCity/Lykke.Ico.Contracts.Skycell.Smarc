@@ -2,13 +2,20 @@
 
 ## Development Process
 
-We use Truffle for development and testing. See truffleframework.com/docs/ for details.
+We use [Truffle](http://truffleframework.com/docs/) for development and testing.
+
+Install with ```npm install -g truffle```.
+
+Launch develop network with ```truffle develop```.
+
+Publish contract with ```migrate --reset```.
+
+Test with ```test```.
+
+See [documentation](http://truffleframework.com/docs/) for further scenarios.
 
 ## Libs
 
-Please, use copy/paste [to local files] instead of using NPM or EthPM or referencing remote files.
+Please, consider copy/paste of common functionality to the single contract file.
 
-Also, use local files only for interface defenitions (like ERC20 or ERC677) or libraries (like SafeMath).
-All logic, even common (like Ownable), should be written directly to contract file.
-
-In case of smart contracts, which contain rather small amount of code, this approach makes developing and reviewing processes easier and faster.
+In case of smart contracts, which contain rather small amount of code, this approach makes developing, reviewing and deploying processes easier and faster.
