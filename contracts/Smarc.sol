@@ -197,8 +197,7 @@ contract ERC677Receiver {
     struct Proposal {
         string addr;        //Uri for more info
         bytes32 hash;       //Hash of the uri content for checking
-        uint256 tokensToBuyBack;      //token to buyback: proposal with 0 amount is invalid
-        uint256 marketPrice;    //price at which token are bought
+        uint256 EtherForBuyBack;      //token to buyback: proposal with 0 amount is invalid
         uint256 startTime;
         uint256 yay;
         uint256 nay;
@@ -209,12 +208,18 @@ contract ERC677Receiver {
     uint256 public constant votingDuration = 2 weeks;
     uint256 public lastNegativeVoting = 0;
     uint256 public constant blockingDuration = 90 days;
+    address public exchangeAddress;
 
     event Voted(address _addr, bool option, uint256 votes); //called when a vote is casted
+    
+    function setExchangeAddress(address _adr) public onlyOwner{
+        exchangeAddress=_adr;
+    }
 
      
      // create a proposal to buy tokens from investors at proposed price
-    function votingProposal(string _addr, bytes32 _hash, uint256 _value, uint256 _price) public mintingFinished onlyOwner {
+    function votingProposal(string _addr, bytes32 _hash, uint256 _value) public payable mintingFinished onlyOwner {
+        require(msg.value==_value); // sent the amount to be used to buy-back 
         require(!isProposalActive()); // no proposal is active, cannot vote in parallel
         require(_hash != bytes32(0)); //hash need to be set
         require(bytes(_addr).length > 0); //the address need to be set and non-empty
@@ -224,7 +229,7 @@ contract ERC677Receiver {
         //(1.1.1970 plus blockingDuration).
         require(now >= lastNegativeVoting.add(blockingDuration));
 
-        currentProposal = Proposal(_addr, _hash, _value, _price, now, 0, 0);
+        currentProposal = Proposal(_addr, _hash, _value, now, 0, 0);
     }
     
     //users can call this to cast a vote
@@ -264,13 +269,12 @@ contract ERC677Receiver {
         require(isProposalActive()); // proposal active
         require(isVotingPhaseOver()); // voting has already ended
 
-        if(currentProposal.yay > currentProposal.nay && currentProposal.tokensToBuyBack > 0) {
+        if(currentProposal.yay > currentProposal.nay && currentProposal.EtherForBuyBack > 0) {
             //Vote was accepted
             Account storage account = updateAccount(owner, UpdateMode.Both);
-            uint256 tokens = currentProposal.tokensToBuyBack;
             
-            // initialize buyback 
-            
+            // initialize buyback transfer of Ether
+            exchangeAddress.transfer(currentProposal.EtherForBuyBack);
             
             /*
             account.tokens = account.tokens.add(tokens); //add tokens to owner
@@ -279,9 +283,11 @@ contract ERC677Receiver {
             */
             
         } else if(currentProposal.yay <= currentProposal.nay) {
+            // send Ether back to owner
+            owner.transfer(currentProposal.EtherForBuyBack);
             //in case of a negative vote, set the time of this negative
             //vote to the end of the negative voting period.
-            //This will prevent any new voting to be conducted.
+            //This will prevent any new voting to be conducted
             lastNegativeVoting = currentProposal.startTime.add(votingDuration);
         }
         delete currentProposal; //proposal ended
