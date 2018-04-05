@@ -1,8 +1,7 @@
-
 pragma solidity ^0.4.14;
 
 
-import "./SafeMath.sol";
+import "github.com/OpenZeppelin/zeppelin-solidity/contracts/math/SafeMath.sol";
 
 /**
  * @title ERC20 Token Interface
@@ -51,6 +50,9 @@ contract ERC677Receiver {
     }
      
     using SafeMath for uint256;
+    
+    //*************************** Contract details *****************************************
+    
     // token metadata
     string public constant name = "SMARC";
     string public constant symbol = "SMARC";
@@ -58,7 +60,7 @@ contract ERC677Receiver {
 
     // total supply and maximum amount of tokens
     uint256 public   maxSupply = 150000000;
-    uint256 public  lockedTokens = 30000000;
+    uint256 public  lockedTokens = 30000000; //tokens for Smart Containers wallet
     
     //time between airdrops
     uint256 public constant redistributionTimeout = 548 days; //18 month
@@ -68,10 +70,6 @@ contract ERC677Receiver {
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) internal allowed;
 
-    // token lockups, array got replaced by Account Struct in --Voting--
-    //mapping(address => uint256) lockups;
-    event TokensLocked(address indexed _holder, uint256 _timeout);
-
     // ownership of contract
     address public owner;
     modifier onlyOwner() {
@@ -79,27 +77,28 @@ contract ERC677Receiver {
         _;
     }
     
+    function transferOwnership(address _newOwner) public onlyOwner{
+        require(_newOwner != address(0));
+        owner = _newOwner;
+    } 
+    
     //used in airdrops and voting 
     enum UpdateMode{Wei, Vote, Both} //update mode for the account
 
 //*************************** Minting *****************************************
-
     
-    // minting
-        
     bool public mintDone = false;
-    bool public mintingDone = false;
     
     modifier mintingFinished() {
-        require(mintingDone == true);
+        require(mintDone == true);
         _;
     }
     modifier mintingInProgress() {
-        require(mintingDone == false);
+        require(mintDone == false);
         _;
-    } 
+    }
     
-    // minting functionality, creates tokens and transfers them 
+    // minting functionality, creates tokens and transfers them to ICO participants
     function mint(address[] _recipients, uint256[] _amounts) public mintingInProgress onlyOwner {
         require(_recipients.length == _amounts.length);
         require(_recipients.length < 255);
@@ -107,34 +106,30 @@ contract ERC677Receiver {
         for (uint8 i = 0; i < _recipients.length; i++) {
             address recipient = _recipients[i];
             uint256 amount = _amounts[i];
+            
 
             // enforce maximum token supply
             require(totalSupply + amount >= totalSupply);
             require(totalSupply + amount <= maxSupply);
 
             balances[recipient] += amount;
-            totalSupply += amount;
+            totalSupply += amount;//count how many tokens are sold
 
             emit Transfer(0, recipient, amount);
         }
     }
     
-    //stops creating new tokens
-    function finishMinting() public mintingInProgress onlyOwner {
-        // check hard cap again
-        assert(totalSupply <= maxSupply);
-
-        mintingDone = true;
-    }
     
-    //minting process is over
-    function setMintDone() public {
-        require(msg.sender == owner);
-        require(!mintDone); //only in minting phase
+    //stops minting process
+    //unlocks voting, airdrops and locking mechanism
+    function setMintDone() public mintingInProgress onlyOwner {
         //here we check that we never exceed the 30mio max tokens. This includes
         //the locked and the unlocked tokens.
         require(lockedTokens.add(totalSupply) <= maxSupply);
         mintDone = true; //end the minting
+        
+        //burn unsold tokens
+        burnTokens(maxSupply-totalSupply);// after this maxSupply=totalSupply
     }
     
     
@@ -145,8 +140,11 @@ contract ERC677Receiver {
     
     // uses the ACCOUNT struct to prevent locked accounts from voting and getting airdrops
     
+    // token lockups, array got replaced by Account Struct in --Voting-
+    event TokensLocked(address indexed _holder, uint256 _timeout);
+    
     //taken as is from VALID, changed locking mechanism to use Account struct in stead of lockups array
-    function lockTokens(address[] _holders, uint256[] _timeouts) public onlyOwner {
+    function lockTokens(address[] _holders, uint256[] _timeouts) public mintingFinished onlyOwner {
         require(_holders.length == _timeouts.length);
         require(_holders.length < 255);
 
@@ -159,7 +157,7 @@ contract ERC677Receiver {
 
             Account storage account= accounts[holder];
             
-            account.timeout=timeout; //lock for "timeout" time
+            account.timeout=timeout; //lock for "timeout" time, set time when lock expires
             
             emit TokensLocked(holder, timeout);
         }
@@ -180,7 +178,7 @@ contract ERC677Receiver {
      
     //taken as is from MODUM added locks for voting in "vote" function and timeout in Account struct
      
-     //used to organize voting
+     //used to organize voting each adress has an account 
      struct Account {
         uint256 lastProposalStartTime; //For checking at which proposal valueModVote was last updated
         uint256 lastAirdropWei; //For checking after which airDrop bonusWei was last updated
@@ -195,11 +193,12 @@ contract ERC677Receiver {
     mapping(address => Account) public accounts;
 
     
-    //Proposal for moving founds from locked to Team address
+    //Proposal for moving founds from holders to Smart Container address at given price.
     struct Proposal {
         string addr;        //Uri for more info
         bytes32 hash;       //Hash of the uri content for checking
-        uint256 tokensToUnlock;      //token to unlock: proposal with 0 amount is invalid
+        uint256 tokensToBuyBack;      //token to buyback: proposal with 0 amount is invalid
+        uint256 marketPrice;    //price at which token are bought
         uint256 startTime;
         uint256 yay;
         uint256 nay;
@@ -212,27 +211,24 @@ contract ERC677Receiver {
     uint256 public constant blockingDuration = 90 days;
 
     event Voted(address _addr, bool option, uint256 votes); //called when a vote is casted
-    event Payout(uint256 weiPerToken); //called when an someone payed ETHs to this contract, that can be distributed
+
      
-     // create a proposal to move tokens from locked to address of Team
-    function votingProposal(string _addr, bytes32 _hash, uint256 _value) public {
-        require(msg.sender == owner); // proposal ony by onwer of contract
+     // create a proposal to buy tokens from investors at proposed price
+    function votingProposal(string _addr, bytes32 _hash, uint256 _value, uint256 _price) public mintingFinished onlyOwner {
         require(!isProposalActive()); // no proposal is active, cannot vote in parallel
-        require(_value <= lockedTokens); //proposal cannot be larger than remaining locked tokens
-        require(_value > 0); //there needs to be locked tokens to make proposal, at least 1 locked token
         require(_hash != bytes32(0)); //hash need to be set
         require(bytes(_addr).length > 0); //the address need to be set and non-empty
-        require(mintDone); //minting phase needs to be over
+
         //in case of negative vote, wait 90 days. If no lastNegativeVoting have
         //occured, lastNegativeVoting is 0 and now is always larger than 14.1.1970
         //(1.1.1970 plus blockingDuration).
         require(now >= lastNegativeVoting.add(blockingDuration));
 
-        currentProposal = Proposal(_addr, _hash, _value, now, 0, 0);
+        currentProposal = Proposal(_addr, _hash, _value, _price, now, 0, 0);
     }
     
     //users can call this to cast a vote
-    function vote(bool _vote) public returns (uint256) {
+    function vote(bool _vote) public mintingFinished returns (uint256) {
         require(isVoteOngoing()); // vote needs to be ongoing
         Account storage account = updateAccount(msg.sender, UpdateMode.Vote);//set account into voting state
         uint256 votes = account.votes; //available votes
@@ -264,18 +260,24 @@ contract ERC677Receiver {
     }
 
     // The voting can be claimed by the owner of this contract
-    function claimVotingProposal() public {
-        require(msg.sender == owner); //only owner can claim proposal
+    function claimVotingProposal() public onlyOwner{
         require(isProposalActive()); // proposal active
         require(isVotingPhaseOver()); // voting has already ended
 
-        if(currentProposal.yay > currentProposal.nay && currentProposal.tokensToUnlock > 0) {
+        if(currentProposal.yay > currentProposal.nay && currentProposal.tokensToBuyBack > 0) {
             //Vote was accepted
             Account storage account = updateAccount(owner, UpdateMode.Both);
-            uint256 tokens = currentProposal.tokensToUnlock;
+            uint256 tokens = currentProposal.tokensToBuyBack;
+            
+            // initialize buyback 
+            
+            
+            /*
             account.tokens = account.tokens.add(tokens); //add tokens to owner
             totalSupply = totalSupply.add(tokens); // add tokens to circulating supply
             lockedTokens = lockedTokens.sub(tokens); // remove tokens from locked state
+            */
+            
         } else if(currentProposal.yay <= currentProposal.nay) {
             //in case of a negative vote, set the time of this negative
             //vote to the end of the negative voting period.
@@ -339,28 +341,22 @@ contract ERC677Receiver {
     
     
     //taken as is from MODUM, added locks for airdrops in payBonus function
-        
+    event Payout(uint256 weiPerToken); //called when an someone payed ETHs to this contract, that can be distributed
     //Airdorp
     uint256 public totalDropPerUnlockedToken = 0;     //totally airdropped eth per unlocked token
     uint256 public rounding = 0;                      //airdrops not accounted yet to make system rounding error proof
 
-
-    function transferOwnership(address _newOwner) public {
-        require(msg.sender == owner);
-        require(_newOwner != address(0));
-        owner = _newOwner;
-    } 
     
-    function() public payable {
-        require(mintDone); //minting needs to be over
-        require(msg.sender == owner); //ETH payment need to be one-way only, from team to tokenholders, confirmed by Lykke
+    //the amount of Ether sent by owner gets payed out to token holders
+    function() public payable mintingFinished onlyOwner {
+        //ETH payment need to be one-way only, from team to tokenholders, confirmed by Lykke
         payout(msg.value);
     }
     
     //anybody can pay and add address that will be checked if they
     //can be added to the bonus
-    function payBonus(address[] _addr) public payable {
-        require(msg.sender == owner);  //ETH payment need to be one-way only, from modum to tokenholders, confirmed by Lykke
+    function payBonus(address[] _addr) public payable mintingFinished onlyOwner {
+        //ETH payment need to be one-way only, from Smart Container to tokenholders, confirmed by Lykke
         uint256 totalWei = 0;
         for (uint8 i=0; i<_addr.length; i++) {
             Account storage account = updateAccount(_addr[i], UpdateMode.Wei);
@@ -380,7 +376,7 @@ contract ERC677Receiver {
         rounding = value % totalSupply; //ensure no rounding error
         uint256 weiPerToken = value.sub(rounding).div(totalSupply);
         totalDropPerUnlockedToken = totalDropPerUnlockedToken.add(weiPerToken); //account for locked tokens and add the drop
-        Payout(weiPerToken);
+        emit Payout(weiPerToken);
     }
 
     function showBonus(address _addr) public constant returns (uint256) {
@@ -391,8 +387,7 @@ contract ERC677Receiver {
         return accounts[_addr].bonusWei;
     }
 
-    function claimBonus() public returns (uint256) {
-        require(mintDone); //minting needs to be over
+    function claimBonus() public mintingFinished returns (uint256) {
 
         Account storage account = updateAccount(msg.sender, UpdateMode.Wei);
         uint256 sendValue = account.bonusWei; //fetch the values
@@ -414,7 +409,6 @@ contract ERC677Receiver {
     //*********************** Burning ************************************************
     //used by owner to destroy tokens(by sending to 0x0) , uses adapted ERC20 transfer function
     function burnTokens(uint256 _amount) public onlyOwner{
-        require(balances[owner]>=_amount);
 
         // check balance
         require(balances[msg.sender] >= _amount);
@@ -438,7 +432,7 @@ contract ERC677Receiver {
     
     
 
-    // *************************ERC20 functionality*********************************
+    // ERC20 functionality
 
     function balanceOf(address _owner) public view returns (uint256) {
         return balances[_owner];
