@@ -1,7 +1,7 @@
 pragma solidity ^0.4.14;
 
 
-import "github.com/OpenZeppelin/zeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath.sol";
 
 /**
  * @title ERC20 Token Interface
