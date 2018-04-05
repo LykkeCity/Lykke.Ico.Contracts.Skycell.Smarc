@@ -1,7 +1,7 @@
 pragma solidity ^0.4.14;
 
 
-import "./SafeMath.sol";
+//import "github.com/OpenZeppelin/zeppelin-solidity/contracts/math/SafeMath.sol";
 
 /**
  * @title ERC20 Token Interface
@@ -49,7 +49,7 @@ contract ERC677Receiver {
         owner = msg.sender;
     }
      
-    using SafeMath for uint256;
+    //using SafeMath for uint256;
     
     //*************************** Contract details *****************************************
     
@@ -125,7 +125,7 @@ contract ERC677Receiver {
     function setMintDone() public mintingInProgress onlyOwner {
         //here we check that we never exceed the 30mio max tokens. This includes
         //the locked and the unlocked tokens.
-        require(lockedTokens.add(totalSupply) <= maxSupply);
+        require(lockedTokens+totalSupply <= maxSupply);
         mintDone = true; //end the minting
         
         //burn unsold tokens
@@ -227,7 +227,7 @@ contract ERC677Receiver {
         //in case of negative vote, wait 90 days. If no lastNegativeVoting have
         //occured, lastNegativeVoting is 0 and now is always larger than 14.1.1970
         //(1.1.1970 plus blockingDuration).
-        require(now >= lastNegativeVoting.add(blockingDuration));
+        require(now >= lastNegativeVoting + blockingDuration);
 
         currentProposal = Proposal(_addr, _hash, _value, now, 0, 0);
     }
@@ -243,10 +243,10 @@ contract ERC677Receiver {
         require(votes > 0); //voter must have a vote left, either by not voting yet, or have modum tokens
 
         if(_vote) {
-            currentProposal.yay = currentProposal.yay.add(votes); // add positive vote
+            currentProposal.yay = currentProposal.yay+ votes; // add positive vote
         }
         else {
-            currentProposal.nay = currentProposal.nay.add(votes); // add negative vote
+            currentProposal.nay = currentProposal.nay + votes; // add negative vote
         }
 
         account.votes = 0; // no more votes to cast
@@ -288,7 +288,7 @@ contract ERC677Receiver {
             //in case of a negative vote, set the time of this negative
             //vote to the end of the negative voting period.
             //This will prevent any new voting to be conducted
-            lastNegativeVoting = currentProposal.startTime.add(votingDuration);
+            lastNegativeVoting = currentProposal.startTime + votingDuration;
         }
         delete currentProposal; //proposal ended
     }
@@ -300,7 +300,7 @@ contract ERC677Receiver {
     function isVoteOngoing() public constant returns (bool)  {
         return isProposalActive()
             && now >= currentProposal.startTime
-            && now < currentProposal.startTime.add(votingDuration);
+            && now < currentProposal.startTime + votingDuration;
         //its safe to use it for longer periods:
         //https://ethereum.stackexchange.com/questions/6795/is-block-timestamp-safe-for-longer-time-periods
     }
@@ -308,7 +308,7 @@ contract ERC677Receiver {
     function isVotingPhaseOver() public constant returns (bool)  {
         //its safe to use it for longer periods:
         //https://ethereum.stackexchange.com/questions/6795/is-block-timestamp-safe-for-longer-time-periods
-        return now >= currentProposal.startTime.add(votingDuration);
+        return now >= currentProposal.startTime+votingDuration;
     }
     
     //updates an account for voting or airdrop or both. This is required to be able to fix the amount of tokens before
@@ -323,9 +323,13 @@ contract ERC677Receiver {
         }
 
         if(mode == UpdateMode.Wei || mode == UpdateMode.Both) {
-            uint256 bonus = totalDropPerUnlockedToken.sub(account.lastAirdropWei);
+            require(account.lastAirdropWei <= totalDropPerUnlockedToken);
+            uint256 bonus = totalDropPerUnlockedToken-account.lastAirdropWei;
             if(bonus != 0) {
-                account.bonusWei = account.bonusWei.add(bonus.mul(account.tokens));
+                uint256 c = bonus * account.tokens;
+                require(c / bonus == account.tokens);//check overflow
+                account.bonusWei = account.bonusWei+c;
+                require(account.bonusWei >= c);//check overflow
                 account.lastAirdropWei = totalDropPerUnlockedToken;
             }
         }
@@ -374,21 +378,30 @@ contract ERC677Receiver {
                 revert();
             }
         }
-        payout(msg.value.add(totalWei));
+        uint256 sum=msg.value+totalWei;
+        require(sum>=msg.value); //check overflow
+        payout(sum);
     }
     
     function payout(uint256 valueWei) internal {
-        uint256 value = valueWei.add(rounding); //add old rounding
+        uint256 value = valueWei+rounding; //add old rounding
         rounding = value % totalSupply; //ensure no rounding error
-        uint256 weiPerToken = value.sub(rounding).div(totalSupply);
-        totalDropPerUnlockedToken = totalDropPerUnlockedToken.add(weiPerToken); //account for locked tokens and add the drop
+        require(value>=rounding);//check underflow
+        uint256 weiPerToken = (value-rounding)/(totalSupply);
+        totalDropPerUnlockedToken = totalDropPerUnlockedToken+weiPerToken; //account for locked tokens and add the drop
+        require(totalDropPerUnlockedToken>=weiPerToken);
         emit Payout(weiPerToken);
     }
 
     function showBonus(address _addr) public constant returns (uint256) {
-        uint256 bonus = totalDropPerUnlockedToken.sub(accounts[_addr].lastAirdropWei);
+        require(accounts[_addr].lastAirdropWei<=totalDropPerUnlockedToken);
+        uint256 bonus = totalDropPerUnlockedToken-accounts[_addr].lastAirdropWei;
         if(bonus != 0) {
-            return accounts[_addr].bonusWei.add(bonus.mul(accounts[_addr].tokens));
+            uint256 c=bonus*accounts[_addr].tokens;
+            require(c/bonus==accounts[_addr].tokens);
+            uint256 d=accounts[_addr].bonusWei+c;
+            require(d>=c);
+            return d;
         }
         return accounts[_addr].bonusWei;
     }
@@ -426,10 +439,12 @@ contract ERC677Receiver {
         emit Transfer(msg.sender, 0x0, _amount);
         
         //decreas circulating supply
-        totalSupply=totalSupply.sub(_amount);
+        require(_amount<=totalSupply);
+        totalSupply=totalSupply-_amount;
         
         //decreas maxSupply
-        maxSupply=maxSupply.sub(_amount);
+       require(_amount<=maxSupply);
+        maxSupply=maxSupply-_amount;
         
     }
     
