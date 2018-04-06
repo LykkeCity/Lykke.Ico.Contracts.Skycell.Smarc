@@ -1,5 +1,5 @@
-var Smarc = artifacts.require("Smarc");
+var SMARC = artifacts.require("Smarc");
 
 module.exports = function(deployer) {
-  deployer.deploy(Smarc);
+  deployer.deploy(SMARC);
 };
