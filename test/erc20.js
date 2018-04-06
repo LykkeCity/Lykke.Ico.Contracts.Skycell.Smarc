@@ -1,4 +1,4 @@
-var SMARC = artifacts.require('./Smarc.sol')
+var SMARC = artifacts.require('./SMARC.sol')
 
 contract('SMARC', (accounts) => {
     // redeploy token contract before each test
