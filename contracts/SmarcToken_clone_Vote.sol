@@ -139,6 +139,9 @@ contract SmarcToken is Controlled {
     /// @param _parentSnapShotBlock Block of the parent token that will
     ///  determine the initial distribution of the clone token, set to 0 if it
     ///  is a new token
+    /// @param _tokenName Name of the new token
+    /// @param _decimalUnits Number of decimals of the new token
+    /// @param _tokenSymbol Token Symbol for the new token
     /// @param _transfersEnabled If true, tokens will be able to be transferred
     function SmarcToken(
         address _tokenFactory,
@@ -560,6 +563,9 @@ contract MiniMeTokenFactory {
     /// @param _parentToken Address of the token being cloned
     /// @param _snapshotBlock Block of the parent token that will
     ///  determine the initial distribution of the clone token
+    /// @param _tokenName Name of the new token
+    /// @param _decimalUnits Number of decimals of the new token
+    /// @param _tokenSymbol Token Symbol for the new token
     /// @param _transfersEnabled If true, tokens will be able to be transferred
     /// @return The address of the new token contract
     function createCloneToken(
