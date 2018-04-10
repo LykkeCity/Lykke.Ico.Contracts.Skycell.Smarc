@@ -156,9 +156,6 @@ contract MiniMeToken is Controlled {
         bool _transfersEnabled
     ) public {
         tokenFactory = MiniMeTokenFactory(_tokenFactory);
-        name = _tokenName;                                 // Set the name
-        decimals = _decimalUnits;                          // Set the decimals
-        symbol = _tokenSymbol;                             // Set the symbol
         parentToken = MiniMeToken(_parentToken);
         parentSnapShotBlock = _parentSnapShotBlock;
         transfersEnabled = _transfersEnabled;
