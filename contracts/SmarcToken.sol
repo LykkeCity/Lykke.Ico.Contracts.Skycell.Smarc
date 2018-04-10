@@ -75,7 +75,7 @@ contract ApproveAndCallFallBack {
 ///  token controller contract, which Giveth will call a "Campaign"
 contract MiniMeToken is Controlled {
 
-    string public name=SMARC;                //The Token's name: e.g. DigixDAO Tokens
+    string public name=SmarcToken;                //The Token's name
     uint8 public decimals=18;             //Number of decimals of the smallest unit
     string public symbol=SMARC;              //An identifier: e.g. REP
     string public version = 'MMT_0.2'; //An arbitrary versioning schem
