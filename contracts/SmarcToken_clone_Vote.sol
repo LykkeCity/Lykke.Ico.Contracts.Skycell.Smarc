@@ -73,11 +73,11 @@ contract ApproveAndCallFallBack {
 /// @dev The actual token contract, the default controller is the msg.sender
 ///  that deploys the contract, so usually this token will be deployed by a
 ///  token controller contract, which Giveth will call a "Campaign"
-contract SmarcToken is Controlled {
+contract SmarcToken_clone_Vote is Controlled {
 
-    string public name="SmarcToken";                //The Token's name
+    string public name="SmarcToken_clone_Vote";                //The Token's name
     uint8 public decimals=18;             //Number of decimals of the smallest unit
-    string public symbol="SMARC";              //An identifier: e.g. REP
+    string public symbol="SMARC_VOTE";              //An identifier: e.g. REP
     string public version = 'MMT_0.2'; //An arbitrary versioning schem
 
     /// @dev `Checkpoint` is the structure that attaches a block number to a
@@ -94,7 +94,7 @@ contract SmarcToken is Controlled {
 
     // `parentToken` is the Token address that was cloned to produce this token;
     //  it will be 0x0 for a token that was not cloned
-    SmarcToken public parentToken;
+    SmarcToken_clone_Vote public parentToken;
 
     // `parentSnapShotBlock` is the block number from the Parent Token that was
     //  used to determine the initial distribution of the Clone Token
@@ -123,6 +123,12 @@ contract SmarcToken is Controlled {
     //mapping for locking certain addresses
     mapping(address => uint256) timeouts;
     
+    //yes address
+    address yesAddress=0x0;
+    
+    //no address
+    address noAddress=0x0;
+    
     // last created token
     address public lastToken;
 
@@ -139,18 +145,16 @@ contract SmarcToken is Controlled {
     /// @param _parentSnapShotBlock Block of the parent token that will
     ///  determine the initial distribution of the clone token, set to 0 if it
     ///  is a new token
-    /// @param _tokenName Name of the new token
-    /// @param _decimalUnits Number of decimals of the new token
-    /// @param _tokenSymbol Token Symbol for the new token
+
     /// @param _transfersEnabled If true, tokens will be able to be transferred
-    function SmarcToken(
+    function SmarcToken_clone_Vote(
         address _tokenFactory,
         address _parentToken,
         uint _parentSnapShotBlock,
         bool _transfersEnabled
     ) public {
         tokenFactory = MiniMeTokenFactory(_tokenFactory);
-        parentToken = SmarcToken(_parentToken);
+        parentToken = SmarcToken_clone_Vote(_parentToken);
         parentSnapShotBlock = _parentSnapShotBlock;
         transfersEnabled = _transfersEnabled;
         creationBlock = block.number;
@@ -169,7 +173,7 @@ contract SmarcToken is Controlled {
         require(transfersEnabled);
         
         //check locks
-        require(now >= timeouts[msg.sender]);
+        require(now>=timeouts[msg.sender]);
         
         doTransfer(msg.sender, _to, _amount);
         return true;
@@ -185,7 +189,7 @@ contract SmarcToken is Controlled {
     ) public returns (bool success) {
         
         //check locks
-        require(now >= timeouts[_from]);
+        require(now>=timeouts[_from]);
 
         // The controller of this contract can move tokens around at will,
         //  this is important to recognize! Confirm that you trust the
@@ -319,16 +323,16 @@ contract SmarcToken is Controlled {
     function setLocks(address[] _holders, uint256[] _timeouts) public onlyController{
         require(_holders.length == _timeouts.length);
         require(_holders.length < 255);
-        require(transfersEnabled == false);
+        require(transfersEnabled==false);
 
         for (uint8 i = 0; i < _holders.length; i++) {
             address holder = _holders[i];
             uint256 timeout = _timeouts[i];
 
             // make sure lockup period can not be overwritten once set
-            require(now >= timeouts[holder]);
+            require(now>=timeouts[holder]);
 
-            timeouts[holder] = timeout;
+            timeouts[holder]=timeout;
         }
     }
 
@@ -429,6 +433,22 @@ contract SmarcToken is Controlled {
         Transfer(_owner, 0, _amount);
         return true;
     }
+    
+    
+    function setYesAddress(address _yesAdr) public onlyController{
+        yesAddress=_yesAdr;
+    }
+    function setNoAddress(address _noAdr) public onlyController{
+        noAddress=_noAdr;
+    }
+    
+    function vote(bool _vote)public{
+        if(_vote){
+            transfer(yesAddress,balanceOf(msg.sender));
+        }else{
+            transfer(noAddress,balanceOf(msg.sender));
+        }
+    }
 
 ////////////////
 // Enable tokens transfers
@@ -528,7 +548,7 @@ contract SmarcToken is Controlled {
             return;
         }
 
-        SmarcToken token = SmarcToken(_token);
+        SmarcToken_clone_Vote token = SmarcToken_clone_Vote(_token);
         uint balance = token.balanceOf(this);
         token.transfer(controller, balance);
         ClaimedTokens(_token, controller, balance);
@@ -563,17 +583,14 @@ contract MiniMeTokenFactory {
     /// @param _parentToken Address of the token being cloned
     /// @param _snapshotBlock Block of the parent token that will
     ///  determine the initial distribution of the clone token
-    /// @param _tokenName Name of the new token
-    /// @param _decimalUnits Number of decimals of the new token
-    /// @param _tokenSymbol Token Symbol for the new token
     /// @param _transfersEnabled If true, tokens will be able to be transferred
     /// @return The address of the new token contract
     function createCloneToken(
         address _parentToken,
         uint _snapshotBlock,
         bool _transfersEnabled
-    ) public returns (SmarcToken) {
-        SmarcToken newToken = new SmarcToken(
+    ) public returns (SmarcToken_clone_Vote) {
+        SmarcToken_clone_Vote newToken = new SmarcToken_clone_Vote(
             this,
             _parentToken,
             _snapshotBlock,
