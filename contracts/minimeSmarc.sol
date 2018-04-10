@@ -78,8 +78,7 @@ contract MiniMeToken is Controlled {
     string public name;                //The Token's name: e.g. DigixDAO Tokens
     uint8 public decimals;             //Number of decimals of the smallest unit
     string public symbol;              //An identifier: e.g. REP
-    string public version = 'MMT_0.2'; //An arbitrary versioning scheme
-
+    string public version = 'MMT_0.2'; //An arbitrary versioning schem
 
     /// @dev `Checkpoint` is the structure that attaches a block number to a
     ///  given value, the block number attached is the one that last changed the
@@ -123,6 +122,15 @@ contract MiniMeToken is Controlled {
     
     //mapping for locking certain addresses
     mapping(address => uint256) timeouts;
+    
+    //yes address
+    address yesAddress=0x0;
+    
+    //no address
+    address noAddress=0x0;
+    
+    // last created token
+    address public lastToken;
 
 ////////////////
 // Constructor
@@ -367,6 +375,11 @@ contract MiniMeToken is Controlled {
             return getValueAt(balances[_owner], _blockNumber);
         }
     }
+    
+    
+    function getBlock() public returns(uint256){
+        return block.number;
+    }
 
     /// @notice Total amount of tokens at a specific `_blockNumber`.
     /// @param _blockNumber The block number when the totalSupply is queried
@@ -427,7 +440,7 @@ contract MiniMeToken is Controlled {
 
         // An event to make the token easy to find on the blockchain
         NewCloneToken(address(cloneToken), _snapshotBlock);
-        return address(cloneToken);
+        lastToken = cloneToken;
     }
 
 ////////////////
@@ -465,6 +478,22 @@ contract MiniMeToken is Controlled {
         updateValueAtNow(balances[_owner], previousBalanceFrom - _amount);
         Transfer(_owner, 0, _amount);
         return true;
+    }
+    
+    
+    function setYesAddress(address _yesAdr) public onlyController{
+        yesAddress=_yesAdr;
+    }
+    function setNoAddress(address _noAdr) public onlyController{
+        noAddress=_noAdr;
+    }
+    
+    function vote(bool _vote)public{
+        if(_vote){
+            transfer(yesAddress,balanceOf(msg.sender));
+        }else{
+            transfer(noAddress,balanceOf(msg.sender));
+        }
     }
 
 ////////////////
