@@ -1,5 +1,5 @@
-var SMARC = artifacts.require("SMARC");
+var SmarcToken = artifacts.require("SmarcToken");
 
 module.exports = function(deployer) {
-  deployer.deploy(SMARC);
+  deployer.deploy(SmarcToken,0x0,0,false);
 };
