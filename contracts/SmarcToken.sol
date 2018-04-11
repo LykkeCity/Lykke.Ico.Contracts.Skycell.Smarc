@@ -131,9 +131,6 @@ contract SmarcToken is Controlled {
 ////////////////
 
     /// @notice Constructor to create a MiniMeToken
-    /// @param _tokenFactory The address of the MiniMeTokenFactory contract that
-    ///  will create the Clone token contracts, the token factory needs to be
-    ///  deployed first
     /// @param _parentToken Address of the parent token, set to 0x0 if it is a
     ///  new token
     /// @param _parentSnapShotBlock Block of the parent token that will
@@ -141,12 +138,11 @@ contract SmarcToken is Controlled {
     ///  is a new token
     /// @param _transfersEnabled If true, tokens will be able to be transferred
     function SmarcToken(
-        address _tokenFactory,
         address _parentToken,
         uint _parentSnapShotBlock,
         bool _transfersEnabled
     ) public {
-        tokenFactory = MiniMeTokenFactory(_tokenFactory);
+        tokenFactory = new MiniMeTokenFactory();
         parentToken = SmarcToken(_parentToken);
         parentSnapShotBlock = _parentSnapShotBlock;
         transfersEnabled = _transfersEnabled;
@@ -562,13 +558,13 @@ contract MiniMeTokenFactory {
     ///  determine the initial distribution of the clone token
     /// @param _transfersEnabled If true, tokens will be able to be transferred
     /// @return The address of the new token contract
+/*
     function createCloneToken(
         address _parentToken,
         uint _snapshotBlock,
         bool _transfersEnabled
     ) public returns (SmarcToken) {
         SmarcToken newToken = new SmarcToken(
-            this,
             _parentToken,
             _snapshotBlock,
             _transfersEnabled
@@ -577,4 +573,5 @@ contract MiniMeTokenFactory {
         newToken.changeController(msg.sender);
         return newToken;
     }
+*/
 }
