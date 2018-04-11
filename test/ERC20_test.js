@@ -87,7 +87,7 @@ contract('SmarcToken', function (accounts) {
         }).then(function (balance) {
             assert.equal(balance.valueOf(), 1000, "account 1 has 1000 tokens ");
         });
-    });
+    })
 
 
 // CREATION
@@ -125,8 +125,37 @@ contract('SmarcToken', function (accounts) {
             return contract.balanceOf.call(accounts[0], {from: accounts[1]});
         }).then(function (balance) {
             assert.equal(balance.valueOf(), 10000, "no tokens where transfered");
+        }).then(function (result) {
+            return contract.destroyTokens(accounts[0], 100, {from: accounts[0]})
+        }).then(function (retVal) {
+            return contract.balanceOf.call(accounts[0], {from: accounts[1]});
+        }).then(function (balance) {
+            assert.equal(balance.valueOf(), 10000-100, "tokens where destroyed");
+        }).then(function (result) {
+            return contract.destroyTokens(accounts[0], 100, {from: accounts[0]})
+        }).then(function (retVal) {
+            return contract.totalSupply.call({from: accounts[1]});
+        }).then(function (balance) {
+            assert.equal(balance.valueOf(), 10000-100-100, "tokens where destroyed");
+        }).then(function(result){
+            //construct new child token for voting
+            return SmarcToken.new(contract.address,0,false,{from: accounts[0]})
+        }).then(function (contr) {
+            var votingToken=contr;
+            //inherits token distribution
+            return votingToken.balanceOf.call(accounts[0], {from: accounts[1]});
+        }).then(function (result) {
+            assert.equals(result.valueOf(), 10000-100-100)
+        }).then(function (result) {
+                return votingToken.transfer(accounts[1], 1000, {from: accounts[0]})
+        }).then(function (retVal) {
+            return votingToken.balanceOf.call(accounts[0], {from: accounts[1]});
+        }).then(function (balance) {
+            assert.equal(balance.valueOf(), 10000-100-100-1000, "transfer of voting token");
+        }).then(function (retVal) {
+            return contract.balanceOf.call(accounts[0], {from: accounts[1]});
+        }).then(function (balance) {
+            assert.equal(balance.valueOf(), 10000-100-100, "balance of original not changed");
         });
     })
-
-
 })
